@@ -104,7 +104,16 @@ function render(){
    imgEl.onclick=()=>openViewer(i);
  });
 }
-window.saveInfo=async i=>{let p=photos[i];p.place=$("#place"+i).value;p.date=$("#date"+i).value;p.author=$("#author"+i).value;p.comment=$("#comment"+i).value;await put(p);await refresh();toast("写真の情報を保存しました")}
+window.saveInfo=async i=>{
+  let p=photos[i];
+  p.place=$("#place"+i).value;
+  p.date=$("#date"+i).value;
+  p.author=$("#author"+i).value;
+  p.comment=$("#comment"+i).value;
+  await put(p);
+  toast("写真の情報を保存しました");
+  await refresh();
+}
 window.del=async i=>{if(confirm("この写真を削除しますか？")){if(imageUrls[photos[i].id]){URL.revokeObjectURL(imageUrls[photos[i].id]);delete imageUrls[photos[i].id];}await remove(photos[i].id);await refresh();}}
 window.openViewer=i=>{current=i;showViewer();$("#viewer").classList.add("on")}
 function showViewer(){if(!photos.length)return;current=(current+photos.length)%photos.length;$("#viewerimg").src=imageUrls[photos[current].id];$("#counter").textContent=(current+1)+" / "+photos.length;$("#prev").style.display=$("#next").style.display=photos.length>1?"block":"none"}
