@@ -26,22 +26,12 @@ input,textarea{width:100%;padding:11px;margin:5px 0 12px;border:1px solid #ccc;b
 .editbox{margin-top:9px;padding-top:9px;border-top:1px solid #eee}
 .progress{display:none;margin-top:10px;padding:10px;border-radius:10px;background:#edf4f0;color:#3f6c5d;font-size:13px}
 @media(min-width:700px){.gallery{grid-template-columns:repeat(3,minmax(0,1fr))}}
-#printArea{display:none}
-@media print{
- @page{size:A4;margin:14mm}
- body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
- body>*:not(#printArea){display:none!important}
- #printArea{display:block;color:#000}
- #printArea h1{font-size:22pt;margin:0 0 4pt}
- .pdate{font-size:11pt;color:#555;margin-bottom:12pt}
- .pitem{display:flex;gap:12pt;align-items:flex-start;margin-bottom:12pt;padding-bottom:12pt;border-bottom:1px solid #ccc;break-inside:avoid;page-break-inside:avoid}
- .pitem img{width:75mm;height:auto;max-height:100mm;flex:none;border-radius:4px}
- .ptext{flex:1;min-width:0}
- .pplace{font-size:13pt;font-weight:700}
- .pmeta{font-size:10pt;color:#555;margin:2pt 0 6pt}
- .pcomment{font-size:11.5pt;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
- .pfoot{text-align:center;font-size:10pt;color:#777;margin-top:10pt}
-}
+#pdfBox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:110;align-items:center;justify-content:center;padding:16px}
+#pdfBox.on{display:flex}
+#pdfBox .box{background:#fff;border-radius:18px;padding:20px;max-width:420px;width:100%}
+#pdfMsg{line-height:1.7;margin:0 0 14px;font-weight:600}
+#pdfBtns{display:none;flex-direction:column;gap:10px;margin-bottom:10px}
+a.abtn{display:block;text-align:center;text-decoration:none;border-radius:12px;padding:12px 14px;font-weight:700;background:#2f5d80;color:#fff}
 </style></head><body>
 <header><div class="wrap"><h1 id="title">みんなの旅アルバム</h1><div id="tripdate">旅の思い出を、みんなで一冊に。</div></div></header>
 <nav><div class="wrap" style="display:flex;gap:8px"><button class="tab on" data-id="album">📷 アルバム</button><button class="tab" data-id="add">＋ 写真追加</button><button class="tab" data-id="guide">🗺️ しおり</button><button class="tab" data-id="story">📖 旅行記</button><button class="tab" data-id="settings">⚙️ 設定</button></div></nav>
@@ -77,7 +67,9 @@ input,textarea{width:100%;padding:11px;margin:5px 0 12px;border:1px solid #ccc;b
 11:00｜観光｜名所
 15:00｜帰路へ｜</textarea><button id="saveset" class="primary">設定を保存</button></div></section>
 </main>
-<div id="viewer"><button id="close" class="vbtn">×</button><button id="prev" class="vbtn">‹</button><img id="viewerimg"><button id="next" class="vbtn">›</button><div id="counter"></div></div><div id="toast"></div><div id="printArea"></div>
+<div id="viewer"><button id="close" class="vbtn">×</button><button id="prev" class="vbtn">‹</button><img id="viewerimg"><button id="next" class="vbtn">›</button><div id="counter"></div></div><div id="toast"></div><div id="pdfBox"><div class="box"><p id="pdfMsg"></p>
+<div id="pdfBtns"><button id="pdfShare" class="primary">📤 保存・共有する</button><a id="pdfOpen" class="abtn" target="_blank" rel="noopener">👁 PDFを開いて見る</a></div>
+<button id="pdfClose">閉じる</button></div></div>
 <script>
 const $=x=>document.querySelector(x),$$=x=>document.querySelectorAll(x);
 let photos=[],current=0,db,selectedFiles=[];
@@ -299,28 +291,129 @@ $("#clearAll").onclick=async()=>{
   }
 };
 
+/* ---------- PDF出力（画面の印刷機能は使わず、PDFファイルを直接作る） ---------- */
+const PGW=1240,PGH=1754,PM=90;   // A4 を 150dpi で描いた大きさ（ピクセル）
+const PFONT='"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic","Meiryo",sans-serif';
+function loadImg(src){return new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=()=>rej(new Error("img"));im.src=src})}
+function dataUrlToBytes(u){const b=atob(u.split(",")[1]);const a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a}
+function wrapText(ctx,text,maxW){
+  const lines=[];
+  String(text||"").split("\n").forEach(par=>{
+    let line="";
+    for(const ch of par){
+      if(line&&ctx.measureText(line+ch).width>maxW){lines.push(line);line=ch}else line+=ch;
+    }
+    lines.push(line);
+  });
+  return lines;
+}
+async function makePdfPages(list,onProgress){
+  const out=[];let cv,ctx,y,pageNo=0;
+  const newPage=()=>{
+    cv=document.createElement("canvas");cv.width=PGW;cv.height=PGH;
+    ctx=cv.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,PGW,PGH);
+    ctx.textBaseline="top";ctx.textAlign="left";y=PM;pageNo++;
+  };
+  const endPage=()=>{
+    ctx.font=`24px ${PFONT}`;ctx.fillStyle="#777";ctx.textAlign="center";
+    ctx.fillText(String(pageNo),PGW/2,PGH-62);ctx.textAlign="left";
+    out.push({data:dataUrlToBytes(cv.toDataURL("image/jpeg",0.85)),w:PGW,h:PGH});
+    cv.width=1;cv.height=1;   // メモリを解放
+  };
+  newPage();
+  // 表題
+  ctx.fillStyle="#26332e";ctx.font=`bold 52px ${PFONT}`;
+  wrapText(ctx,$("#stitle").value,PGW-PM*2).forEach(l=>{ctx.fillText(l,PM,y);y+=68});
+  ctx.fillStyle="#68736e";ctx.font=`28px ${PFONT}`;
+  ctx.fillText("日程："+$("#sdate").value,PM,y+4);y+=64;
+
+  const IMGW=520,IMGH=640,GAP=40,TX=PM+IMGW+GAP,TW=PGW-PM-TX;
+  for(let k=0;k<list.length;k++){
+    onProgress(k+1,list.length);
+    const p=list[k];
+    let im=null;
+    try{im=await loadImg(p.img||p.thumb||"")}catch(e){}
+    let dw=0,dh=0;
+    if(im){const s=Math.min(IMGW/im.width,IMGH/im.height);dw=Math.round(im.width*s);dh=Math.round(im.height*s)}
+    ctx.font=`bold 34px ${PFONT}`;const pl=wrapText(ctx,p.place||"旅の一枚",TW);
+    const metaText=[p.date,p.author?"撮影："+p.author:""].filter(Boolean).join("　");
+    ctx.font=`26px ${PFONT}`;const ml=metaText?wrapText(ctx,metaText,TW):[];
+    ctx.font=`30px ${PFONT}`;const cl=p.comment?wrapText(ctx,p.comment,TW):[];
+    const textH=pl.length*46+(ml.length?ml.length*38+8:0)+(cl.length?16+cl.length*46:0);
+    const blockH=Math.max(dh,textH);
+    if(y>PM+10&&y+blockH>PGH-PM-40){endPage();newPage()}
+    if(im)ctx.drawImage(im,PM,y,dw,dh);
+    let ty=y;
+    ctx.fillStyle="#26332e";ctx.font=`bold 34px ${PFONT}`;pl.forEach(l=>{ctx.fillText(l,TX,ty);ty+=46});
+    if(ml.length){ty+=8;ctx.fillStyle="#68736e";ctx.font=`26px ${PFONT}`;ml.forEach(l=>{ctx.fillText(l,TX,ty);ty+=38})}
+    if(cl.length){ty+=16;ctx.fillStyle="#26332e";ctx.font=`30px ${PFONT}`;cl.forEach(l=>{ctx.fillText(l,TX,ty);ty+=46})}
+    y+=blockH+22;
+    ctx.fillStyle="#dde3df";ctx.fillRect(PM,y,PGW-PM*2,2);
+    y+=28;
+  }
+  if(y+60>PGH-PM){endPage();newPage()}
+  ctx.fillStyle="#777";ctx.font=`24px ${PFONT}`;ctx.textAlign="center";
+  ctx.fillText("―― みんなの写真と言葉から作った旅の記録 ――",PGW/2,y+10);
+  endPage();
+  return out;
+}
+// 写真つきの画像ページを並べて、PDFファイルを組み立てる
+function buildPdf(pages){
+  const enc=new TextEncoder(),parts=[],offs=[];let pos=0;
+  const add=b=>{if(typeof b==="string")b=enc.encode(b);parts.push(b);pos+=b.length};
+  const n=pages.length,PW=595.28,PH=841.89;
+  const begin=id=>{offs[id]=pos;add(id+" 0 obj\n")};
+  add("%PDF-1.4\n");
+  begin(1);add("<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+  begin(2);add("<< /Type /Pages /Kids ["+pages.map((_,i)=>(3+i*3)+" 0 R").join(" ")+"] /Count "+n+" >>\nendobj\n");
+  pages.forEach((p,i)=>{
+    const pid=3+i*3,cid=pid+1,iid=pid+2;
+    begin(pid);add("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 "+PW+" "+PH+"] /Resources << /XObject << /Im0 "+iid+" 0 R >> >> /Contents "+cid+" 0 R >>\nendobj\n");
+    const content="q "+PW+" 0 0 "+PH+" 0 0 cm /Im0 Do Q";
+    begin(cid);add("<< /Length "+content.length+" >>\nstream\n"+content+"\nendstream\nendobj\n");
+    begin(iid);add("<< /Type /XObject /Subtype /Image /Width "+p.w+" /Height "+p.h+" /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length "+p.data.length+" >>\nstream\n");
+    add(p.data);add("\nendstream\nendobj\n");
+  });
+  const xref=pos,total=3+n*3;
+  add("xref\n0 "+total+"\n0000000000 65535 f \n");
+  for(let id=1;id<total;id++)add(String(offs[id]).padStart(10,"0")+" 00000 n \n");
+  add("trailer\n<< /Size "+total+" /Root 1 0 R >>\nstartxref\n"+xref+"\n%%EOF");
+  return new Blob(parts,{type:"application/pdf"});
+}
+let pdfBlob=null,pdfUrl="",pdfName="";
+$("#pdfClose").onclick=()=>$("#pdfBox").classList.remove("on");
+$("#pdfShare").onclick=async()=>{
+  if(!pdfBlob)return;
+  const f=new File([pdfBlob],pdfName+".pdf",{type:"application/pdf"});
+  try{
+    if(navigator.canShare&&navigator.canShare({files:[f]})){
+      await navigator.share({files:[f],title:pdfName});
+      return;
+    }
+  }catch(e){if(e&&e.name==="AbortError")return}
+  // 共有機能が使えない端末では、通常のダウンロードにする
+  const a=document.createElement("a");a.href=pdfUrl;a.download=pdfName+".pdf";
+  document.body.appendChild(a);a.click();a.remove();
+};
 $("#savePdf").onclick=async()=>{
   if(!photos.length)return toast("写真がありません");
   const list=[...photos].sort((a,b)=>(a.date||"").localeCompare(b.date||""));
-  const area=$("#printArea");
-  area.innerHTML=
-    `<h1>${esc($("#stitle").value)}</h1><div class="pdate">日程：${esc($("#sdate").value)}</div>`+
-    list.map(p=>{
-      const meta=[p.date,p.author?"撮影："+p.author:""].filter(Boolean).join("　");
-      return `<div class="pitem"><img src="${p.img||p.thumb||""}">`+
-        `<div class="ptext"><div class="pplace">${esc(p.place||"旅の一枚")}</div>`+
-        `<div class="pmeta">${esc(meta)}</div>`+
-        (p.comment?`<div class="pcomment">${esc(p.comment)}</div>`:"")+
-        `</div></div>`;
-    }).join("")+
-    `<div class="pfoot">―― みんなの写真と言葉から作った旅の記録 ――</div>`;
-  // 写真の読み込みが終わってから印刷画面を開く
-  const imgs=[...area.querySelectorAll("img")];
-  await Promise.all(imgs.map(im=>im.decode?im.decode().catch(()=>{}):Promise.resolve()));
-  const oldTitle=document.title;
-  document.title=$("#stitle").value+"_旅行記";   // PDFのファイル名になります
-  window.onafterprint=()=>{document.title=oldTitle;area.innerHTML="";window.onafterprint=null};
-  setTimeout(()=>window.print(),150);
+  $("#pdfBtns").style.display="none";
+  $("#pdfMsg").textContent="PDFを作っています…";
+  $("#pdfBox").classList.add("on");
+  try{
+    const pages=await makePdfPages(list,(a,b)=>{$("#pdfMsg").textContent=`PDFを作っています… ${a} / ${b} 枚目`});
+    pdfBlob=buildPdf(pages);
+    if(pdfUrl)URL.revokeObjectURL(pdfUrl);
+    pdfUrl=URL.createObjectURL(pdfBlob);
+    pdfName=($("#stitle").value||"旅行記").replace(/[\\\/:*?"<>|]/g,"_")+"_旅行記";
+    $("#pdfMsg").textContent=`PDFができました（${pages.length}ページ・約${(pdfBlob.size/1048576).toFixed(1)}MB）。下のボタンで保存してください。`;
+    $("#pdfOpen").href=pdfUrl;
+    $("#pdfBtns").style.display="flex";
+  }catch(e){
+    $("#pdfBox").classList.remove("on");
+    alert("PDFの作成に失敗しました。写真の枚数を減らして、もう一度お試しください。");
+  }
 };
 
 openDB().then(()=>{settings();refresh()}).catch(()=>alert("このブラウザでは写真保存機能を利用できません。"));
