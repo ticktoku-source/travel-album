@@ -11,8 +11,8 @@ nav{display:flex;gap:8px;padding:10px;background:#fff;position:sticky;top:0;z-in
 button{border:0;border-radius:12px;padding:11px 14px;font-weight:700;cursor:pointer}.on,.primary{background:var(--accent);color:#fff}.danger{background:#c94b4b;color:#fff}
 main{max-width:900px;margin:auto;padding:16px}.panel{display:none}.panel.on{display:block}.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px}
 input,textarea{width:100%;padding:11px;margin:5px 0 12px;border:1px solid #ccc;border-radius:10px;font:inherit}textarea{min-height:90px}
-.gallery{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.item{background:#fff;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
-.item img{width:100%;aspect-ratio:1;object-fit:cover;cursor:zoom-in}.meta{padding:11px;font-size:14px}.small{font-size:12px;color:var(--sub)}
+.gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.item{background:#fff;border-radius:14px;overflow:hidden;border:1px solid var(--line);min-width:0}
+.item img{display:block;width:100%;aspect-ratio:1;object-fit:cover;cursor:zoom-in;background:#e6ece8}.meta{padding:11px;font-size:14px}.small{font-size:12px;color:var(--sub)}
 .timeline{border-left:3px solid #d6e2dc;padding-left:15px}.stop{margin:0 0 16px}
 #picked{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:10px 0}#picked .pick{position:relative}#picked img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;display:block}
 #picked .removePick{position:absolute;top:5px;right:5px;width:32px;height:32px;padding:0;border-radius:999px;background:rgba(0,0,0,.72);color:#fff;font-size:18px}
@@ -25,7 +25,23 @@ input,textarea{width:100%;padding:11px;margin:5px 0 12px;border:1px solid #ccc;b
 #counter{position:absolute;bottom:max(18px,env(safe-area-inset-bottom));color:#fff;background:rgba(0,0,0,.45);padding:6px 12px;border-radius:999px}
 .editbox{margin-top:9px;padding-top:9px;border-top:1px solid #eee}
 .progress{display:none;margin-top:10px;padding:10px;border-radius:10px;background:#edf4f0;color:#3f6c5d;font-size:13px}
-@media(min-width:700px){.gallery{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:700px){.gallery{grid-template-columns:repeat(3,minmax(0,1fr))}}
+#printArea{display:none}
+@media print{
+ @page{size:A4;margin:14mm}
+ body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+ body>*:not(#printArea){display:none!important}
+ #printArea{display:block;color:#000}
+ #printArea h1{font-size:22pt;margin:0 0 4pt}
+ .pdate{font-size:11pt;color:#555;margin-bottom:12pt}
+ .pitem{display:flex;gap:12pt;align-items:flex-start;margin-bottom:12pt;padding-bottom:12pt;border-bottom:1px solid #ccc;break-inside:avoid;page-break-inside:avoid}
+ .pitem img{width:75mm;height:auto;max-height:100mm;flex:none;border-radius:4px}
+ .ptext{flex:1;min-width:0}
+ .pplace{font-size:13pt;font-weight:700}
+ .pmeta{font-size:10pt;color:#555;margin:2pt 0 6pt}
+ .pcomment{font-size:11.5pt;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+ .pfoot{text-align:center;font-size:10pt;color:#777;margin-top:10pt}
+}
 </style></head><body>
 <header><div class="wrap"><h1 id="title">みんなの旅アルバム</h1><div id="tripdate">旅の思い出を、みんなで一冊に。</div></div></header>
 <nav><div class="wrap" style="display:flex;gap:8px"><button class="tab on" data-id="album">📷 アルバム</button><button class="tab" data-id="add">＋ 写真追加</button><button class="tab" data-id="guide">🗺️ しおり</button><button class="tab" data-id="story">📖 旅行記</button><button class="tab" data-id="settings">⚙️ 設定</button></div></nav>
@@ -43,6 +59,7 @@ input,textarea{width:100%;padding:11px;margin:5px 0 12px;border:1px solid #ccc;b
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
       <button id="make" class="primary">旅行記を作成・更新</button>
       <button id="saveTxt" class="primary" style="background:#2f5d80">📄 メモ帳へ保存（テキスト出力）</button>
+      <button id="savePdf" class="primary" style="background:#8a4b2f">📕 PDFで保存（写真つき）</button>
     </div>
   </div>
   <div class="card" style="border-color:#e0b2b2;background:#fff8f8">
@@ -60,42 +77,68 @@ input,textarea{width:100%;padding:11px;margin:5px 0 12px;border:1px solid #ccc;b
 11:00｜観光｜名所
 15:00｜帰路へ｜</textarea><button id="saveset" class="primary">設定を保存</button></div></section>
 </main>
-<div id="viewer"><button id="close" class="vbtn">×</button><button id="prev" class="vbtn">‹</button><img id="viewerimg"><button id="next" class="vbtn">›</button><div id="counter"></div></div><div id="toast"></div>
+<div id="viewer"><button id="close" class="vbtn">×</button><button id="prev" class="vbtn">‹</button><img id="viewerimg"><button id="next" class="vbtn">›</button><div id="counter"></div></div><div id="toast"></div><div id="printArea"></div>
 <script>
-const $=x=>document.querySelector(x),$$=x=>document.querySelectorAll(x);let photos=[],current=0,db,selectedFiles=[];
+const $=x=>document.querySelector(x),$$=x=>document.querySelectorAll(x);
+let photos=[],current=0,db,selectedFiles=[];
 const DB="TabiAlbumDB17",STORE="photos";
+
 function esc(s){return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
-function toast(s){$("#toast").textContent=s;$("#toast").style.display="block";setTimeout(()=>$("#toast").style.display="none",1800)} function openDB(){return new Promise((res,rej)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=e=>{if(!e.target.result.objectStoreNames.contains(STORE))e.target.result.createObjectStore(STORE,{keyPath:"id"})};r.onsuccess=e=>{db=e.target.result;res()};r.onerror=()=>rej(r.error)})} function getAll(){return new Promise((res,rej)=>{let tx=db.transaction(STORE,"readonly");let r=tx.objectStore(STORE).getAll();r.onsuccess=()=>res(r.result.sort((a,b)=>a.id-b.id));r.onerror=()=>rej(r.error)})} function put(p){return new Promise((res,rej)=>{let tx=db.transaction(STORE,"readwrite");let r=tx.objectStore(STORE).put(p);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);r.onerror=()=>rej(r.error)})} function remove(id){return new Promise((res,rej)=>{let tx=db.transaction(STORE,"readwrite");let r=tx.objectStore(STORE).delete(id);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);r.onerror=()=>rej(r.error)})} function clearDB(){return new Promise((res,rej)=>{let tx=db.transaction(STORE,"readwrite");let r=tx.objectStore(STORE).clear();tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);r.onerror=()=>rej(r.error)})} async function refresh(){   photos=await getAll();   render(); } $$(".tab").forEach(b=>b.onclick=()=>{$$(".tab,.panel").forEach(x=>x.classList.remove("on"));b.classList.add("on");$("#"+b.dataset.id).classList.add("on")});
+function toast(s){$("#toast").textContent=s;$("#toast").style.display="block";setTimeout(()=>$("#toast").style.display="none",1800)}
+
+/* ---------- データベース（写真の保存先） ---------- */
+function openDB(){return new Promise((res,rej)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=e=>{if(!e.target.result.objectStoreNames.contains(STORE))e.target.result.createObjectStore(STORE,{keyPath:"id"})};r.onsuccess=e=>{db=e.target.result;res()};r.onerror=()=>rej(r.error)})}
+function getAll(){return new Promise((res,rej)=>{let tx=db.transaction(STORE,"readonly");let r=tx.objectStore(STORE).getAll();r.onsuccess=()=>res(r.result.sort((a,b)=>a.id-b.id));r.onerror=()=>rej(r.error)})}
+function put(p){return new Promise((res,rej)=>{let tx=db.transaction(STORE,"readwrite");let r=tx.objectStore(STORE).put(p);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);r.onerror=()=>rej(r.error)})}
+function remove(id){return new Promise((res,rej)=>{let tx=db.transaction(STORE,"readwrite");let r=tx.objectStore(STORE).delete(id);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);r.onerror=()=>rej(r.error)})}
+function clearDB(){return new Promise((res,rej)=>{let tx=db.transaction(STORE,"readwrite");let r=tx.objectStore(STORE).clear();tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);r.onerror=()=>rej(r.error)})}
+async function refresh(){photos=await getAll();render();}
+
+/* ---------- タブ切り替え ---------- */
+$$(".tab").forEach(b=>b.onclick=()=>{$$(".tab,.panel").forEach(x=>x.classList.remove("on"));b.classList.add("on");$("#"+b.dataset.id).classList.add("on")});
+
+/* ---------- 写真の選択 ---------- */
 $("#file").onchange=e=>{selectedFiles=[...e.target.files];renderPicked()};
 function renderPicked(){
- $("#picked").innerHTML="";
- selectedFiles.forEach((f,i)=>{let box=document.createElement("div");box.className="pick";let im=document.createElement("img");im.src=URL.createObjectURL(f);let b=document.createElement("button");b.className="removePick";b.textContent="×";b.title="この写真を選択から外す";b.onclick=()=>{selectedFiles.splice(i,1);renderPicked()};box.appendChild(im);box.appendChild(b);$("#picked").appendChild(box)});
-}
-function compressToBase64(file){
-  return new Promise((resolve,reject)=>{
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const max = 1000;
-        let w = img.width, h = img.height;
-        if(w > max || h > max){
-          if(w > h){ h = Math.round(h * (max / w)); w = max; }
-          else { w = Math.round(w * (max / h)); h = max; }
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = w; canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", 0.72));
-      };
-      img.onerror = reject;
-      img.src = e.target.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+  $("#picked").innerHTML="";
+  selectedFiles.forEach((f,i)=>{
+    let box=document.createElement("div");box.className="pick";
+    let im=document.createElement("img");im.src=URL.createObjectURL(f);
+    let b=document.createElement("button");b.className="removePick";b.textContent="×";b.title="この写真を選択から外す";
+    b.onclick=()=>{selectedFiles.splice(i,1);renderPicked()};
+    box.appendChild(im);box.appendChild(b);$("#picked").appendChild(box);
   });
 }
+
+/* ---------- 画像の縮小（大きい写真用と、一覧表示用の小さい写真の2種類を作る） ---------- */
+function resizeToDataURL(img,max,q){
+  let w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+  if(w>max||h>max){
+    if(w>h){h=Math.round(h*(max/w));w=max;}
+    else{w=Math.round(w*(max/h));h=max;}
+  }
+  const canvas=document.createElement("canvas");
+  canvas.width=w;canvas.height=h;
+  canvas.getContext("2d").drawImage(img,0,0,w,h);
+  return canvas.toDataURL("image/jpeg",q);
+}
+function makeImages(file){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        const r={img:resizeToDataURL(img,1000,0.72),thumb:resizeToDataURL(img,500,0.7)};
+        URL.revokeObjectURL(url);
+        resolve(r);
+      }catch(e){URL.revokeObjectURL(url);reject(e)}
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("画像を読み込めませんでした"))};
+    img.src=url;
+  });
+}
+
+/* ---------- 写真の保存 ---------- */
 $("#save").onclick=async()=>{
   let fs=[...selectedFiles];
   if(!fs.length)return alert("写真を選んでください");
@@ -105,8 +148,8 @@ $("#save").onclick=async()=>{
   try{
     for(let i=0;i<fs.length;i++){
       $("#progress").textContent=`${fs.length}枚中 ${i+1}枚目を保存中…`;
-      let b64=await compressToBase64(fs[i]);
-      await put({id:Date.now()+i,img:b64,author:"",comment:"",date:"",place:""});
+      let r=await makeImages(fs[i]);
+      await put({id:Date.now()+i,img:r.img,thumb:r.thumb,author:"",comment:"",date:"",place:""});
       ok++;
     }
     $("#file").value="";selectedFiles=[];$("#picked").innerHTML="";
@@ -120,64 +163,165 @@ $("#save").onclick=async()=>{
     $("#progress").style.display="none";
   }
 };
+
+/* ---------- アルバム表示 ---------- */
 function render(){
- $("#empty").style.display=photos.length?"none":"block";
- const gallery=$("#gallery");
- gallery.innerHTML="";
- photos.forEach((p,i)=>{
-   const div=document.createElement("div");
-   div.className="item";
-   div.innerHTML=`
-     <img id="img_${i}" src="${p.img||''}">
-     <div class="meta">
-       <div class="placeLine">${esc(p.place||"旅の一枚")}</div>
-       ${p.comment?`<div class="caption">${esc(p.comment)}</div>`:`<div class="small" style="margin-top:6px">コメントはまだありません</div>`}
-       <div class="small" style="margin-top:6px">${esc(p.date)}${p.date&&p.author?" ・ ":""}${esc(p.author)}</div>
-       <details class="editbox"><summary>✏️ コメント・場所などを追加／編集</summary>
-         <input id="place${i}" placeholder="場所 例：宇都宮" value="${esc(p.place)}">
-         <input id="date${i}" type="date" value="${esc(p.date)}">
-         <input id="author${i}" placeholder="撮影者 例：Toku" value="${esc(p.author)}">
-         <textarea id="comment${i}" placeholder="ひとこと 例：餃子の食べ比べ！">${esc(p.comment)}</textarea>
-         <button class="primary" onclick="saveInfo(${i})">記入内容を保存</button> <button onclick="del(${i})">削除</button>
-       </details>
-     </div>`;
-   gallery.appendChild(div);
-   const imgEl=div.querySelector(`#img_${i}`);
-   imgEl.onclick=()=>openViewer(i);
- });
+  $("#empty").style.display=photos.length?"none":"block";
+  const gallery=$("#gallery");
+  gallery.innerHTML="";
+  photos.forEach((p,i)=>gallery.appendChild(buildCard(p,i)));
 }
-window.saveInfo=async i=>{
-  let p={...photos[i]};
-  p.place=$("#place"+i).value;
-  p.date=$("#date"+i).value;
-  p.author=$("#author"+i).value;
-  p.comment=$("#comment"+i).value;
-  await put(p);
-  toast("写真の情報を保存しました");
-  await refresh();
+
+// 場所・コメント・日付などの文字部分だけを更新する（写真そのものには触らない）
+function fillInfo(meta,p){
+  meta.querySelector(".placeLine").textContent=p.place||"旅の一枚";
+  meta.querySelector(".capArea").innerHTML=p.comment
+    ?`<div class="caption">${esc(p.comment)}</div>`
+    :`<div class="small" style="margin-top:6px">コメントはまだありません</div>`;
+  meta.querySelector(".dateLine").textContent=[p.date,p.author].filter(Boolean).join(" ・ ");
 }
-window.del=async i=>{if(confirm("この写真を削除しますか？")){await remove(photos[i].id);await refresh();}}
-window.openViewer=i=>{current=i;showViewer();$("#viewer").classList.add("on")}
-function showViewer(){if(!photos.length)return;current=(current+photos.length)%photos.length;$("#viewerimg").src=photos[current].img\vert{}\vert{}'';$("#counter").textContent=(current+1)+" / "+photos.length;$("#prev").style.display=$("#next").style.display=photos.length>1?"block":"none"}
-$("#prev").onclick=e=>{e.stopPropagation();current--;showViewer()};$("#next").onclick=e=>{e.stopPropagation();current++;showViewer()};$("#close").onclick=()=>$("#viewer").classList.remove("on");$("#viewer").onclick=e=>{if(e.target.id==="viewer")$("#viewer").classList.remove("on")}
-let sx=0;$("#viewer").addEventListener("touchstart",e=>sx=e.changedTouches[0].screenX,{passive:true});$("#viewer")
-.addEventListener("touchend",e=>{let dx=e.changedTouches[0].screenX-sx;if(Math.abs(dx)>50){current+=dx<0?1:-1;showViewer()}},{passive:true});
-function settings(){let s=JSON.parse(localStorage.getItem("tripSettings15")||"{}");if(s.title)$("#stitle").value=s.title;if(s.date)$("#sdate").value=s.date;if(s.plan)$("#plan").value=s.plan;$("#title").textContent=$("#stitle").value;$("#tripdate").textContent=$("#sdate").value+" ｜ 旅の思い出を、みんなで一冊に。";$("#timeline").innerHTML=$("#plan").value.split("\n").filter(Boolean).map(x=>{let a=x.split("｜");return `<div class="stop"><b>${esc(a[0])} ${esc(a[1])}</b><div class="small">${esc(a[2])}</div></div>`}).join("")}
-$("#saveset").onclick=()=>{localStorage.setItem("tripSettings15",JSON.stringify({title:$("#stitle").value,date:$("#sdate").value,plan:$("#plan").value}));settings();toast("旅行設定を保存しました")}
-$("#make").onclick=()=>{$("#storytext").value=$("#stitle").value+"\n\n日程："+$("#sdate").value+"\n\n"+[...photos].sort((a,b)=>(a.date||"").localeCompare(b.date||"")).map(p=>`【${p.date||"日付なし"} ${p.place||"場所なし"}】\n撮影：${p.author||"参加者"}\nコメント：${p.comment||"（なし）"}`).join("\n\n")+"\n\n―― みんなの写真と言葉から作った旅の記録 ――";toast("旅行記を作成しました")}
+
+function buildCard(p,i){
+  const div=document.createElement("div");
+  div.className="item";
+
+  const img=document.createElement("img");
+  img.decoding="async";
+  img.alt="";
+  const src=p.thumb||p.img||"";
+  img.src=src;
+  img.onclick=()=>openViewer(i);
+  // 表示に失敗したとき、一度だけ自動で読み込み直す
+  img.onerror=()=>{if(!img.dataset.retry){img.dataset.retry="1";setTimeout(()=>{img.src=src},400)}};
+  div.appendChild(img);
+
+  const meta=document.createElement("div");
+  meta.className="meta";
+  meta.innerHTML=`
+    <div class="placeLine"></div>
+    <div class="capArea"></div>
+    <div class="small dateLine" style="margin-top:6px"></div>
+    <details class="editbox"><summary>✏️ コメント・場所などを追加／編集</summary>
+      <input class="fPlace" placeholder="場所 例：宇都宮">
+      <input class="fDate" type="date">
+      <input class="fAuthor" placeholder="撮影者 例：Toku">
+      <textarea class="fComment" placeholder="ひとこと 例：餃子の食べ比べ！"></textarea>
+      <button class="primary btnSave">記入内容を保存</button> <button class="btnDel">削除</button>
+    </details>`;
+  meta.querySelector(".fPlace").value=p.place||"";
+  meta.querySelector(".fDate").value=p.date||"";
+  meta.querySelector(".fAuthor").value=p.author||"";
+  meta.querySelector(".fComment").value=p.comment||"";
+
+  meta.querySelector(".btnSave").onclick=async()=>{
+    p.place=meta.querySelector(".fPlace").value;
+    p.date=meta.querySelector(".fDate").value;
+    p.author=meta.querySelector(".fAuthor").value;
+    p.comment=meta.querySelector(".fComment").value;
+    try{
+      await put({...p});
+      fillInfo(meta,p);            // ← 全体を作り直さず、この1枚の文字だけ更新
+      meta.querySelector("details").open=false;   // ← 入力欄を閉じる
+      toast("写真の情報を保存しました");
+    }catch(e){
+      alert("保存できませんでした。もう一度お試しください。");
+    }
+  };
+  meta.querySelector(".btnDel").onclick=async()=>{
+    if(confirm("この写真を削除しますか？")){await remove(p.id);await refresh();}
+  };
+
+  fillInfo(meta,p);
+  div.appendChild(meta);
+  return div;
+}
+
+/* ---------- 拡大表示 ---------- */
+function openViewer(i){current=i;showViewer();$("#viewer").classList.add("on")}
+function showViewer(){
+  if(!photos.length)return;
+  current=(current+photos.length)%photos.length;
+  $("#viewerimg").src=photos[current].img||photos[current].thumb||"";
+  $("#counter").textContent=(current+1)+" / "+photos.length;
+  $("#prev").style.display=$("#next").style.display=photos.length>1?"block":"none";
+}
+$("#prev").onclick=e=>{e.stopPropagation();current--;showViewer()};
+$("#next").onclick=e=>{e.stopPropagation();current++;showViewer()};
+$("#close").onclick=()=>$("#viewer").classList.remove("on");
+$("#viewer").onclick=e=>{if(e.target.id==="viewer")$("#viewer").classList.remove("on")};
+let sx=0;
+$("#viewer").addEventListener("touchstart",e=>sx=e.changedTouches[0].screenX,{passive:true});
+$("#viewer").addEventListener("touchend",e=>{let dx=e.changedTouches[0].screenX-sx;if(Math.abs(dx)>50){current+=dx<0?1:-1;showViewer()}},{passive:true});
+
+/* ---------- 旅行設定 ---------- */
+function settings(){
+  let s={};
+  try{s=JSON.parse(localStorage.getItem("tripSettings15")||"{}")}catch(e){}
+  if(s.title)$("#stitle").value=s.title;
+  if(s.date)$("#sdate").value=s.date;
+  if(s.plan)$("#plan").value=s.plan;
+  $("#title").textContent=$("#stitle").value;
+  $("#tripdate").textContent=$("#sdate").value+" ｜ 旅の思い出を、みんなで一冊に。";
+  $("#timeline").innerHTML=$("#plan").value.split("\n").filter(Boolean).map(x=>{
+    let a=x.split("｜");
+    return `<div class="stop"><b>${esc(a[0])} ${esc(a[1])}</b><div class="small">${esc(a[2])}</div></div>`;
+  }).join("");
+}
+$("#saveset").onclick=()=>{
+  try{localStorage.setItem("tripSettings15",JSON.stringify({title:$("#stitle").value,date:$("#sdate").value,plan:$("#plan").value}))}catch(e){}
+  settings();toast("旅行設定を保存しました");
+};
+
+/* ---------- 旅行記 ---------- */
+$("#make").onclick=()=>{
+  $("#storytext").value=$("#stitle").value+"\n\n日程："+$("#sdate").value+"\n\n"+
+    [...photos].sort((a,b)=>(a.date||"").localeCompare(b.date||"")).map(p=>
+      `【${p.date||"日付なし"} ${p.place||"場所なし"}】\n撮影：${p.author||"参加者"}\nコメント：${p.comment||"（なし）"}`
+    ).join("\n\n")+"\n\n―― みんなの写真と言葉から作った旅の記録 ――";
+  toast("旅行記を作成しました");
+};
 $("#saveTxt").onclick=()=>{
   if(!$("#storytext").value)$("#make").click();
   let blob=new Blob([$("#storytext").value],{type:"text/plain"});
   let a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=$("#stitle").value+"_旅行記.txt";a.click();
-}
+};
 $("#clearAll").onclick=async()=>{
-  if(confirm("【確認】ファイルの保存は完了しましたか？\n\n本当にすべての写真と記録を削除して、アルバムを初期化しても宜しいですか？")){
+  if(confirm("【確認】ファイルの保存は完了しましたか？\n\n本当にすべての写真と記録、および設定（タイトル・日程・旅程）を初めの状態に戻して、アルバムを初期化しても宜しいですか？")){
     await clearDB();
+    // 設定（タイトル・日程・旅程）も初めの状態に戻す
+    try{localStorage.removeItem("tripSettings15")}catch(e){}
+    ["#stitle","#sdate","#plan"].forEach(id=>{$(id).value=$(id).defaultValue});
+    settings();
     $("#storytext").value="";
     await refresh();
     document.querySelector('[data-id="album"]').click();
     alert("アルバムを初期化しました。次の旅行の思い出を入力できます！");
   }
-}
+};
+
+$("#savePdf").onclick=async()=>{
+  if(!photos.length)return toast("写真がありません");
+  const list=[...photos].sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+  const area=$("#printArea");
+  area.innerHTML=
+    `<h1>${esc($("#stitle").value)}</h1><div class="pdate">日程：${esc($("#sdate").value)}</div>`+
+    list.map(p=>{
+      const meta=[p.date,p.author?"撮影："+p.author:""].filter(Boolean).join("　");
+      return `<div class="pitem"><img src="${p.img||p.thumb||""}">`+
+        `<div class="ptext"><div class="pplace">${esc(p.place||"旅の一枚")}</div>`+
+        `<div class="pmeta">${esc(meta)}</div>`+
+        (p.comment?`<div class="pcomment">${esc(p.comment)}</div>`:"")+
+        `</div></div>`;
+    }).join("")+
+    `<div class="pfoot">―― みんなの写真と言葉から作った旅の記録 ――</div>`;
+  // 写真の読み込みが終わってから印刷画面を開く
+  const imgs=[...area.querySelectorAll("img")];
+  await Promise.all(imgs.map(im=>im.decode?im.decode().catch(()=>{}):Promise.resolve()));
+  const oldTitle=document.title;
+  document.title=$("#stitle").value+"_旅行記";   // PDFのファイル名になります
+  window.onafterprint=()=>{document.title=oldTitle;area.innerHTML="";window.onafterprint=null};
+  setTimeout(()=>window.print(),150);
+};
+
 openDB().then(()=>{settings();refresh()}).catch(()=>alert("このブラウザでは写真保存機能を利用できません。"));
 </script></body></html>
