@@ -25,13 +25,6 @@ input,textarea{width:100%;padding:11px;margin:5px 0 12px;border:1px solid #ccc;b
 #counter{position:absolute;bottom:max(18px,env(safe-area-inset-bottom));color:#fff;background:rgba(0,0,0,.45);padding:6px 12px;border-radius:999px}
 .editbox{margin-top:9px;padding-top:9px;border-top:1px solid #eee}
 .progress{display:none;margin-top:10px;padding:10px;border-radius:10px;background:#edf4f0;color:#3f6c5d;font-size:13px}
-@media print{
-  nav,header,button,.editbox,.progress,p.small,section:not(#story){display:none!important}
-  body{background:#fff;color:#000}main,.card{padding:0;border:0;margin:0}
-  #storytext{border:0;resize:none;font-size:16pt;line-height:1.8}
-  .print-head{display:block!important;margin-bottom:20px;border-bottom:2px solid #000;padding-bottom:10px}
-}
-.print-head{display:none}
 @media(min-width:700px){.gallery{grid-template-columns:repeat(3,1fr)}}
 </style></head><body>
 <header><div class="wrap"><h1 id="title">みんなの旅アルバム</h1><div id="tripdate">旅の思い出を、みんなで一冊に。</div></div></header>
@@ -45,17 +38,20 @@ input,textarea{width:100%;padding:11px;margin:5px 0 12px;border:1px solid #ccc;b
 <section id="guide" class="panel"><div class="card"><h2>旅のしおり</h2><div id="timeline" class="timeline"></div></div></section>
 <section id="story" class="panel">
   <div class="card">
-    <div class="print-head"><h1 id="p-title"></h1><p id="p-date"></p></div>
     <h2>旅の記録（旅行記）</h2>
     <textarea id="storytext" style="min-height:280px"></textarea>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
       <button id="make" class="primary">旅行記を作成・更新</button>
-      <button id="print" class="primary" style="background:#2f5d80">🖨️ PDF保存・印刷する</button>
+      <button id="saveTxt" class="primary" style="background:#2f5d80">📄 メモ帳へ保存（テキスト出力）</button>
     </div>
+    <p class="small" style="margin-top:12px;line-height:1.6">
+      <b>💡 PDF保存のやり方：</b><br>
+      Safari下部の <b>共有ボタン（□に↑）</b> ＞ <b>「プリント」</b> を選び、プレビュー画面を2本指で広げると（ピンチアウト）、PDFとしてスマホの「ファイル」アプリに保存できます。
+    </p>
   </div>
   <div class="card" style="border-color:#e0b2b2;background:#fff8f8">
     <h3 style="color:#c94b4b;margin-top:0">旅の締めくくり（アルバムの初期化）</h3>
-    <p class="small">PDFの保存が完了したら、下のボタンでアルバムを空にして次の旅行の準備ができます。</p>
+    <p class="small">保存が完了したら、下のボタンでアルバムを空にして次の旅行の準備ができます。</p>
     <button id="clearAll" class="danger">⚠️ アルバムの写真・記録をすべて消去する</button>
   </div>
 </section>
@@ -113,14 +109,13 @@ let sx=0;$("#viewer").addEventListener("touchstart",e=>sx=e.changedTouches[0].sc
 function settings(){let s=JSON.parse(localStorage.getItem("tripSettings15")||"{}");if(s.title)$("#stitle").value=s.title;if(s.date)$("#sdate").value=s.date;if(s.plan)$("#plan").value=s.plan;$("#title").textContent=$("#stitle").value;$("#tripdate").textContent=$("#sdate").value+" ｜ 旅の思い出を、みんなで一冊に。";$("#timeline").innerHTML=$("#plan").value.split("\n").filter(Boolean).map(x=>{let a=x.split("｜");return `<div class="stop"><b>${esc(a[0])} ${esc(a[1])}</b><div class="small">${esc(a[2])}</div></div>`}).join("")}
 $("#saveset").onclick=()=>{localStorage.setItem("tripSettings15",JSON.stringify({title:$("#stitle").value,date:$("#sdate").value,plan:$("#plan").value}));settings();toast("旅行設定を保存しました")}
 $("#make").onclick=()=>{$("#storytext").value=$("#stitle").value+"\n\n日程："+$("#sdate").value+"\n\n"+[...photos].sort((a,b)=>(a.date||"").localeCompare(b.date||"")).map(p=>`【${p.date||"日付なし"} ${p.place||"場所なし"}】\n撮影：${p.author||"参加者"}\nコメント：${p.comment||"（なし）"}`).join("\n\n")+"\n\n―― みんなの写真と言葉から作った旅の記録 ――";toast("旅行記を作成しました")}
-$("#print").onclick=()=>{
+$("#saveTxt").onclick=()=>{
   if(!$("#storytext").value)$("#make").click();
-  $("#p-title").textContent=$("#stitle").value;
-  $("#p-date").textContent=$("#sdate").value;
-  window.print();
+  let blob=new Blob([$("#storytext").value],{type:"text/plain"});
+  let a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=$("#stitle").value+"_旅行記.txt";a.click();
 }
 $("#clearAll").onclick=async()=>{
-  if(confirm("【確認】PDFの保存は完了しましたか？\n\n本当にすべての写真と記録を削除して、アルバムを初期化しても宜しいですか？")){
+  if(confirm("【確認】ファイルの保存は完了しましたか？\n\n本当にすべての写真と記録を削除して、アルバムを初期化しても宜しいですか？")){
     await clearDB();
     $("#storytext").value="";
     await refresh();
