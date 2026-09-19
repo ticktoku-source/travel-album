@@ -71,12 +71,56 @@ function renderPicked(){
  $("#picked").innerHTML="";
  selectedFiles.forEach((f,i)=>{let box=document.createElement("div");box.className="pick";let im=document.createElement("img");im.src=URL.createObjectURL(f);let b=document.createElement("button");b.className="removePick";b.textContent="×";b.title="この写真を選択から外す";b.onclick=()=>{selectedFiles.splice(i,1);renderPicked()};box.appendChild(im);box.appendChild(b);$("#picked").appendChild(box)});
 }
-function compress(file){return new Promise((res,rej)=>{let img=new Image(),u=URL.createObjectURL(file);img.onload=()=>{let max=1600,w=img.naturalWidth,h=img.naturalHeight,scale=Math.min(1,max/Math.max(w,h)),cw=Math.round(w*scale),ch=Math.round(h*scale),c=document.createElement("canvas");c.width=cw;c.height=ch;c.getContext("2d").drawImage(img,0,0,cw,ch);URL.revokeObjectURL(u);c.toBlob(b=>b?res(b):rej(new Error("変換失敗")),"image/jpeg",0.82)};img.onerror=rej;img.src=u})}
-$("#save").onclick=async()=>{let fs=[...selectedFiles];if(!fs.length)return alert("写真を選んでください");$("#save").disabled=true;$("#progress").style.display="block";
-let ok=0;try{for(let i=0;i<fs.length;i++){ $("#progress").textContent=`${fs.length}枚中 ${i+1}枚目を保存しています…`;let blob=await compress(fs[i]);await put({id:Date.now()+i,img:blob,author:"",comment:"",date:"",place:""});ok++}
-$("#file").value="";selectedFiles=[];$("#picked").innerHTML="";await refresh();document.querySelector('[data-id="album"]').click();toast(ok+"枚の写真を追加しました")}
-catch(e){alert("写真の保存中に問題が発生しました。端末の空き容量やブラウザ設定をご確認ください。")}
-finally{$("#save").disabled=false;$("#progress").style.display="none"}};
+// 強力な画像軽量化（軽量圧縮処理）
+function compress(file){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 1200; // 長辺を最大1200pxに抑制
+        let w = img.width, h = img.height;
+        if(w > max || h > max){
+          if(w > h){ h = Math.round(h * (max / w)); w = max; }
+          else { w = Math.round(w * (max / h)); h = max; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob(b => b ? resolve(b) : reject(new Error("圧縮失敗")), "image/jpeg", 0.75);
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+$("#save").onclick=async()=>{
+  let fs=[...selectedFiles];
+  if(!fs.length)return alert("写真を選んでください");
+  $("#save").disabled=true;
+  $("#progress").style.display="block";
+  let ok=0;
+  try{
+    for(let i=0;i<fs.length;i++){
+      $("#progress").textContent=`${fs.length}枚中 ${i+1}枚目を軽量化して保存中…`;
+      let blob=await compress(fs[i]);
+      await put({id:Date.now()+i,img:blob,author:"",comment:"",date:"",place:""});
+      ok++;
+    }
+    $("#file").value="";selectedFiles=[];$("#picked").innerHTML="";
+    await refresh();
+    document.querySelector('[data-id="album"]').click();
+    toast(ok+"枚の写真を追加しました");
+  }catch(e){
+    alert("保存中に問題が発生しました。");
+  }finally{
+    $("#save").disabled=false;
+    $("#progress").style.display="none";
+  }
+};
 function render(){
  $("#empty").style.display=photos.length?"none":"block";
  const gallery=$("#gallery");
