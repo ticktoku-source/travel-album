@@ -62,10 +62,10 @@ input,textarea{width:100%;padding:11px;margin:5px 0 12px;border:1px solid #ccc;b
 </main>
 <div id="viewer"><button id="close" class="vbtn">×</button><button id="prev" class="vbtn">‹</button><img id="viewerimg"><button id="next" class="vbtn">›</button><div id="counter"></div></div><div id="toast"></div>
 <script>
-const $=x=>document.querySelector(x),$$=x=>document.querySelectorAll(x);let photos=[],current=0,db,selectedFiles=[],imageUrls={};
+const $=x=>document.querySelector(x),$$=x=>document.querySelectorAll(x);let photos=[],current=0,db,selectedFiles=[];
 const DB="TabiAlbumDB15",STORE="photos";
 function esc(s){return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
-function toast(s){$("#toast").textContent=s;$("#toast").style.display="block";setTimeout(()=>$("#toast").style.display="none",1800)} function openDB(){return new Promise((res,rej)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=e=>{if(!e.target.result.objectStoreNames.contains(STORE))e.target.result.createObjectStore(STORE,{keyPath:"id"})};r.onsuccess=e=>{db=e.target.result;res()};r.onerror=()=>rej(r.error)})} function getAll(){return new Promise((res,rej)=>{let r=db.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>res(r.result.sort((a,b)=>a.id-b.id));r.onerror=()=>rej(r.error)})} function put(p){return new Promise((res,rej)=>{let r=db.transaction(STORE,"readwrite").objectStore(STORE).put(p);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})} function remove(id){return new Promise((res,rej)=>{let r=db.transaction(STORE,"readwrite").objectStore(STORE).delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})} function clearDB(){return new Promise((res,rej)=>{let r=db.transaction(STORE,"readwrite").objectStore(STORE).clear();r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})} async function refresh(){   photos=await getAll();   photos.forEach(p=>{     if(p.img && !imageUrls[p.id]) {       imageUrls[p.id]=URL.createObjectURL(p.img);     }   });   render(); } $$(".tab").forEach(b=>b.onclick=()=>{$$(".tab,.panel").forEach(x=>x.classList.remove("on"));b.classList.add("on");$("#"+b.dataset.id).classList.add("on")});
+function toast(s){$("#toast").textContent=s;$("#toast").style.display="block";setTimeout(()=>$("#toast").style.display="none",1800)} function openDB(){return new Promise((res,rej)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=e=>{if(!e.target.result.objectStoreNames.contains(STORE))e.target.result.createObjectStore(STORE,{keyPath:"id"})};r.onsuccess=e=>{db=e.target.result;res()};r.onerror=()=>rej(r.error)})} function getAll(){return new Promise((res,rej)=>{let r=db.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>res(r.result.sort((a,b)=>a.id-b.id));r.onerror=()=>rej(r.error)})} function put(p){return new Promise((res,rej)=>{let r=db.transaction(STORE,"readwrite").objectStore(STORE).put(p);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})} function remove(id){return new Promise((res,rej)=>{let r=db.transaction(STORE,"readwrite").objectStore(STORE).delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})} function clearDB(){return new Promise((res,rej)=>{let r=db.transaction(STORE,"readwrite").objectStore(STORE).clear();r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})} async function refresh(){   photos=await getAll();   render(); } $$(".tab").forEach(b=>b.onclick=()=>{$$(".tab,.panel").forEach(x=>x.classList.remove("on"));b.classList.add("on");$("#"+b.dataset.id).classList.add("on")});
 $("#file").onchange=e=>{selectedFiles=[...e.target.files];renderPicked()};
 function renderPicked(){
  $("#picked").innerHTML="";
@@ -84,8 +84,9 @@ function render(){
  photos.forEach((p,i)=>{
    const div=document.createElement("div");
    div.className="item";
+   const imgUrl = p.img ? URL.createObjectURL(p.img) : "";
    div.innerHTML=`
-     <img id="img_${i}">
+     <img id="img_${i}" src="${imgUrl}">
      <div class="meta">
        <div class="placeLine">${esc(p.place||"旅の一枚")}</div>
        ${p.comment?`<div class="caption">${esc(p.comment)}</div>`:`<div class="small" style="margin-top:6px">コメントはまだありません</div>`}
@@ -100,7 +101,6 @@ function render(){
      </div>`;
    gallery.appendChild(div);
    const imgEl=div.querySelector(`#img_${i}`);
-   imgEl.src=imageUrls[p.id]||"";
    imgEl.onclick=()=>openViewer(i);
  });
 }
@@ -114,9 +114,9 @@ window.saveInfo=async i=>{
   toast("写真の情報を保存しました");
   await refresh();
 }
-window.del=async i=>{if(confirm("この写真を削除しますか？")){if(imageUrls[photos[i].id]){URL.revokeObjectURL(imageUrls[photos[i].id]);delete imageUrls[photos[i].id];}await remove(photos[i].id);await refresh();}}
+window.del=async i=>{if(confirm("この写真を削除しますか？")){await remove(photos[i].id);await refresh();}}
 window.openViewer=i=>{current=i;showViewer();$("#viewer").classList.add("on")}
-function showViewer(){if(!photos.length)return;current=(current+photos.length)%photos.length;$("#viewerimg").src=imageUrls[photos[current].id]\vert{}\vert{}"";$("#counter").textContent=(current+1)+" / "+photos.length;$("#prev").style.display=$("#next").style.display=photos.length>1?"block":"none"}
+function showViewer(){if(!photos.length)return;current=(current+photos.length)%photos.length;$("#viewerimg").src=photos[current].img ? URL.createObjectURL(photos[current].img) : "";$("#counter").textContent=(current+1)+" / "+photos.length;$("#prev").style.display=$("#next").style.display=photos.length>1?"block":"none"}
 $("#prev").onclick=e=>{e.stopPropagation();current--;showViewer()};$("#next").onclick=e=>{e.stopPropagation();current++;showViewer()};$("#close").onclick=()=>$("#viewer").classList.remove("on");$("#viewer").onclick=e=>{if(e.target.id==="viewer")$("#viewer").classList.remove("on")}
 let sx=0;$("#viewer").addEventListener("touchstart",e=>sx=e.changedTouches[0].screenX,{passive:true});$("#viewer")
 .addEventListener("touchend",e=>{let dx=e.changedTouches[0].screenX-sx;if(Math.abs(dx)>50){current+=dx<0?1:-1;showViewer()}},{passive:true});
@@ -130,8 +130,6 @@ $("#saveTxt").onclick=()=>{
 }
 $("#clearAll").onclick=async()=>{
   if(confirm("【確認】ファイルの保存は完了しましたか？\n\n本当にすべての写真と記録を削除して、アルバムを初期化しても宜しいですか？")){
-    Object.keys(imageUrls).forEach(k=>URL.revokeObjectURL(imageUrls[k]));
-    imageUrls={};
     await clearDB();
     $("#storytext").value="";
     await refresh();
