@@ -65,7 +65,7 @@ input,textarea{width:100%;padding:11px;margin:5px 0 12px;border:1px solid #ccc;b
 const $=x=>document.querySelector(x),$$=x=>document.querySelectorAll(x);let photos=[],current=0,db,selectedFiles=[],imageUrls={};
 const DB="TabiAlbumDB15",STORE="photos";
 function esc(s){return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
-function toast(s){$("#toast").textContent=s;$("#toast").style.display="block";setTimeout(()=>$("#toast").style.display="none",1800)} function openDB(){return new Promise((res,rej)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=e=>{if(!e.target.result.objectStoreNames.contains(STORE))e.target.result.createObjectStore(STORE,{keyPath:"id"})};r.onsuccess=e=>{db=e.target.result;res()};r.onerror=()=>rej(r.error)})} function getAll(){return new Promise((res,rej)=>{let r=db.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>res(r.result.sort((a,b)=>a.id-b.id));r.onerror=()=>rej(r.error)})} function put(p){return new Promise((res,rej)=>{let r=db.transaction(STORE,"readwrite").objectStore(STORE).put(p);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})} function remove(id){return new Promise((res,rej)=>{let r=db.transaction(STORE,"readwrite").objectStore(STORE).delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})} function clearDB(){return new Promise((res,rej)=>{let r=db.transaction(STORE,"readwrite").objectStore(STORE).clear();r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})} async function refresh(){   photos=await getAll();   photos.forEach(p=>{ if(!imageUrls[p.id]) imageUrls[p.id]=URL.createObjectURL(p.img); });   render(); } $$(".tab").forEach(b=>b.onclick=()=>{$$(".tab,.panel").forEach(x=>x.classList.remove("on"));b.classList.add("on");$("#"+b.dataset.id).classList.add("on")});
+function toast(s){$("#toast").textContent=s;$("#toast").style.display="block";setTimeout(()=>$("#toast").style.display="none",1800)} function openDB(){return new Promise((res,rej)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=e=>{if(!e.target.result.objectStoreNames.contains(STORE))e.target.result.createObjectStore(STORE,{keyPath:"id"})};r.onsuccess=e=>{db=e.target.result;res()};r.onerror=()=>rej(r.error)})} function getAll(){return new Promise((res,rej)=>{let r=db.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>res(r.result.sort((a,b)=>a.id-b.id));r.onerror=()=>rej(r.error)})} function put(p){return new Promise((res,rej)=>{let r=db.transaction(STORE,"readwrite").objectStore(STORE).put(p);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})} function remove(id){return new Promise((res,rej)=>{let r=db.transaction(STORE,"readwrite").objectStore(STORE).delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})} function clearDB(){return new Promise((res,rej)=>{let r=db.transaction(STORE,"readwrite").objectStore(STORE).clear();r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})} async function refresh(){   photos=await getAll();   photos.forEach(p=>{     if(p.img && !imageUrls[p.id]) {       imageUrls[p.id]=URL.createObjectURL(p.img);     }   });   render(); } $$(".tab").forEach(b=>b.onclick=()=>{$$(".tab,.panel").forEach(x=>x.classList.remove("on"));b.classList.add("on");$("#"+b.dataset.id).classList.add("on")});
 $("#file").onchange=e=>{selectedFiles=[...e.target.files];renderPicked()};
 function renderPicked(){
  $("#picked").innerHTML="";
@@ -100,12 +100,12 @@ function render(){
      </div>`;
    gallery.appendChild(div);
    const imgEl=div.querySelector(`#img_${i}`);
-   imgEl.src=imageUrls[p.id];
+   imgEl.src=imageUrls[p.id]||"";
    imgEl.onclick=()=>openViewer(i);
  });
 }
 window.saveInfo=async i=>{
-  let p=photos[i];
+  let p={...photos[i]};
   p.place=$("#place"+i).value;
   p.date=$("#date"+i).value;
   p.author=$("#author"+i).value;
@@ -116,7 +116,7 @@ window.saveInfo=async i=>{
 }
 window.del=async i=>{if(confirm("この写真を削除しますか？")){if(imageUrls[photos[i].id]){URL.revokeObjectURL(imageUrls[photos[i].id]);delete imageUrls[photos[i].id];}await remove(photos[i].id);await refresh();}}
 window.openViewer=i=>{current=i;showViewer();$("#viewer").classList.add("on")}
-function showViewer(){if(!photos.length)return;current=(current+photos.length)%photos.length;$("#viewerimg").src=imageUrls[photos[current].id];$("#counter").textContent=(current+1)+" / "+photos.length;$("#prev").style.display=$("#next").style.display=photos.length>1?"block":"none"}
+function showViewer(){if(!photos.length)return;current=(current+photos.length)%photos.length;$("#viewerimg").src=imageUrls[photos[current].id]\vert{}\vert{}"";$("#counter").textContent=(current+1)+" / "+photos.length;$("#prev").style.display=$("#next").style.display=photos.length>1?"block":"none"}
 $("#prev").onclick=e=>{e.stopPropagation();current--;showViewer()};$("#next").onclick=e=>{e.stopPropagation();current++;showViewer()};$("#close").onclick=()=>$("#viewer").classList.remove("on");$("#viewer").onclick=e=>{if(e.target.id==="viewer")$("#viewer").classList.remove("on")}
 let sx=0;$("#viewer").addEventListener("touchstart",e=>sx=e.changedTouches[0].screenX,{passive:true});$("#viewer")
 .addEventListener("touchend",e=>{let dx=e.changedTouches[0].screenX-sx;if(Math.abs(dx)>50){current+=dx<0?1:-1;showViewer()}},{passive:true});
