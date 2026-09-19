@@ -63,7 +63,7 @@ input,textarea{width:100%;padding:11px;margin:5px 0 12px;border:1px solid #ccc;b
 <div id="viewer"><button id="close" class="vbtn">×</button><button id="prev" class="vbtn">‹</button><img id="viewerimg"><button id="next" class="vbtn">›</button><div id="counter"></div></div><div id="toast"></div>
 <script>
 const $=x=>document.querySelector(x),$$=x=>document.querySelectorAll(x);let photos=[],current=0,db,selectedFiles=[];
-const DB="TabiAlbumDB15",STORE="photos";
+const DB="TabiAlbumDB16",STORE="photos";
 function esc(s){return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 function toast(s){$("#toast").textContent=s;$("#toast").style.display="block";setTimeout(()=>$("#toast").style.display="none",1800)} function openDB(){return new Promise((res,rej)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=e=>{if(!e.target.result.objectStoreNames.contains(STORE))e.target.result.createObjectStore(STORE,{keyPath:"id"})};r.onsuccess=e=>{db=e.target.result;res()};r.onerror=()=>rej(r.error)})} function getAll(){return new Promise((res,rej)=>{let r=db.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>res(r.result.sort((a,b)=>a.id-b.id));r.onerror=()=>rej(r.error)})} function put(p){return new Promise((res,rej)=>{let r=db.transaction(STORE,"readwrite").objectStore(STORE).put(p);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})} function remove(id){return new Promise((res,rej)=>{let r=db.transaction(STORE,"readwrite").objectStore(STORE).delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})} function clearDB(){return new Promise((res,rej)=>{let r=db.transaction(STORE,"readwrite").objectStore(STORE).clear();r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})} async function refresh(){   photos=await getAll();   render(); } $$(".tab").forEach(b=>b.onclick=()=>{$$(".tab,.panel").forEach(x=>x.classList.remove("on"));b.classList.add("on");$("#"+b.dataset.id).classList.add("on")});
 $("#file").onchange=e=>{selectedFiles=[...e.target.files];renderPicked()};
@@ -71,14 +71,14 @@ function renderPicked(){
  $("#picked").innerHTML="";
  selectedFiles.forEach((f,i)=>{let box=document.createElement("div");box.className="pick";let im=document.createElement("img");im.src=URL.createObjectURL(f);let b=document.createElement("button");b.className="removePick";b.textContent="×";b.title="この写真を選択から外す";b.onclick=()=>{selectedFiles.splice(i,1);renderPicked()};box.appendChild(im);box.appendChild(b);$("#picked").appendChild(box)});
 }
-// 強力な画像軽量化（軽量圧縮処理）
-function compress(file){
+// 画像をBase64テキストデータに変換＆軽量圧縮
+function compressToBase64(file){
   return new Promise((resolve,reject)=>{
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        const max = 1200; // 長辺を最大1200pxに抑制
+        const max = 1000;
         let w = img.width, h = img.height;
         if(w > max || h > max){
           if(w > h){ h = Math.round(h * (max / w)); w = max; }
@@ -88,7 +88,7 @@ function compress(file){
         canvas.width = w; canvas.height = h;
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, w, h);
-        canvas.toBlob(b => b ? resolve(b) : reject(new Error("圧縮失敗")), "image/jpeg", 0.75);
+        resolve(canvas.toDataURL("image/jpeg", 0.72));
       };
       img.onerror = reject;
       img.src = e.target.result;
@@ -105,9 +105,9 @@ $("#save").onclick=async()=>{
   let ok=0;
   try{
     for(let i=0;i<fs.length;i++){
-      $("#progress").textContent=`${fs.length}枚中 ${i+1}枚目を軽量化して保存中…`;
-      let blob=await compress(fs[i]);
-      await put({id:Date.now()+i,img:blob,author:"",comment:"",date:"",place:""});
+      $("#progress").textContent=`${fs.length}枚中 ${i+1}枚目を保存中…`;
+      let b64=await compressToBase64(fs[i]);
+      await put({id:Date.now()+i,img:b64,author:"",comment:"",date:"",place:""});
       ok++;
     }
     $("#file").value="";selectedFiles=[];$("#picked").innerHTML="";
@@ -128,9 +128,8 @@ function render(){
  photos.forEach((p,i)=>{
    const div=document.createElement("div");
    div.className="item";
-   const imgUrl = p.img ? URL.createObjectURL(p.img) : "";
    div.innerHTML=`
-     <img id="img_${i}" src="${imgUrl}">
+     <img id="img_${i}" src="${p.img||''}">
      <div class="meta">
        <div class="placeLine">${esc(p.place||"旅の一枚")}</div>
        ${p.comment?`<div class="caption">${esc(p.comment)}</div>`:`<div class="small" style="margin-top:6px">コメントはまだありません</div>`}
@@ -160,7 +159,7 @@ window.saveInfo=async i=>{
 }
 window.del=async i=>{if(confirm("この写真を削除しますか？")){await remove(photos[i].id);await refresh();}}
 window.openViewer=i=>{current=i;showViewer();$("#viewer").classList.add("on")}
-function showViewer(){if(!photos.length)return;current=(current+photos.length)%photos.length;$("#viewerimg").src=photos[current].img ? URL.createObjectURL(photos[current].img) : "";$("#counter").textContent=(current+1)+" / "+photos.length;$("#prev").style.display=$("#next").style.display=photos.length>1?"block":"none"}
+function showViewer(){if(!photos.length)return;current=(current+photos.length)%photos.length;$("#viewerimg").src=photos[current].img\vert{}\vert{}'';$("#counter").textContent=(current+1)+" / "+photos.length;$("#prev").style.display=$("#next").style.display=photos.length>1?"block":"none"}
 $("#prev").onclick=e=>{e.stopPropagation();current--;showViewer()};$("#next").onclick=e=>{e.stopPropagation();current++;showViewer()};$("#close").onclick=()=>$("#viewer").classList.remove("on");$("#viewer").onclick=e=>{if(e.target.id==="viewer")$("#viewer").classList.remove("on")}
 let sx=0;$("#viewer").addEventListener("touchstart",e=>sx=e.changedTouches[0].screenX,{passive:true});$("#viewer")
 .addEventListener("touchend",e=>{let dx=e.changedTouches[0].screenX-sx;if(Math.abs(dx)>50){current+=dx<0?1:-1;showViewer()}},{passive:true});
